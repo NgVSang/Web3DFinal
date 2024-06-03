@@ -6,8 +6,16 @@ import { HDRJPGLoader } from "@monogrid/gainmap-js";
 import { GUI } from "three/addons/libs/lil-gui.module.min.js";
 
 const environments = {
-  "Hội trường bách khoa": { filename: "hoi_truong_bach_khoa.JPG" },
-  "Hành lang bách khoa": { filename: "hanh_lang_bach_khoa.JPG" },
+  "Hội trường bách khoa": {
+    filename: "hoi_truong_bach_khoa.JPG",
+    front: "Hành lang bách khoa",
+    left: "Hành lang bách khoa",
+  },
+  "Hành lang bách khoa": {
+    filename: "hanh_lang_bach_khoa.JPG",
+    behind: "Hội trường bách khoa",
+    right: "Hội trường bách khoa",
+  },
 };
 
 const params = {
@@ -48,8 +56,7 @@ function init() {
   renderer = new THREE.WebGLRenderer();
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
-  //
-
+  // Tạo hình học và vật liệu
   let geometry = new THREE.TorusKnotGeometry(18, 8, 200, 40, 1, 3);
   let material = new THREE.MeshStandardMaterial({
     color: 0xffffff,
@@ -66,7 +73,7 @@ function init() {
   planeMesh = new THREE.Mesh(geometry, material);
   planeMesh.position.y = -50;
   planeMesh.rotation.x = -Math.PI * 0.5;
-  scene.add(planeMesh);
+  // scene.add(planeMesh);
 
   const pmremGenerator = new THREE.PMREMGenerator(renderer);
   pmremGenerator.compileEquirectangularShader();
@@ -75,7 +82,43 @@ function init() {
     pmremGenerator.dispose();
   };
 
+  // Tạo các mũi tên chỉ hướng
+  const arrowSize = 50;
+  const arrowColor = "black";
+  const arrowY = -100;
+  const arrowX = 200;
+
+  const arrowData = {
+    front: {
+      direction: new THREE.Vector3(0, 0, 1),
+      position: new THREE.Vector3(0, arrowY, arrowX),
+    },
+    behind: {
+      direction: new THREE.Vector3(0, 0, -1),
+      position: new THREE.Vector3(0, arrowY, -arrowX),
+    },
+    left: {
+      direction: new THREE.Vector3(1, 0, 0),
+      position: new THREE.Vector3(arrowX, arrowY, 0),
+    },
+    right: {
+      direction: new THREE.Vector3(-1, 0, 0),
+      position: new THREE.Vector3(-arrowX, arrowY, 0),
+    },
+  };
+
+  function findMatchingProperties(object1, object2) {
+    const matchingProperties = [];
+    for (const key in object1) {
+      if (object2.hasOwnProperty(key)) {
+        matchingProperties.push(key);
+      }
+    }
+    return matchingProperties;
+  }
+
   function loadEnvironment(name) {
+    params.envMap = name
     const filename = environments[name].filename;
     hdrJpg = new HDRJPGLoader(renderer).load(
       `../../src/images/${filename}`,
@@ -90,6 +133,24 @@ function init() {
           THREE.EquirectangularReflectionMapping;
         hdrJpgEquirectangularMap.needsUpdate = true;
         hdrJpg.dispose();
+
+        const matchingProperties = findMatchingProperties(
+          environments[name],
+          arrowData
+        );
+        console.log(matchingProperties);
+        scene.clear()
+        matchingProperties.forEach((property) => {
+          const arrowHelper = new THREE.ArrowHelper(
+            arrowData[property].direction,
+            arrowData[property].position,
+            arrowSize,
+            arrowColor,
+            arrowSize,
+            arrowSize * 0.6
+          );
+          scene.add(arrowHelper);
+        })
       },
       function (progress) {
         fileSizes[filename] = humanFileSize(progress.total);
@@ -109,19 +170,16 @@ function init() {
   controls.maxDistance = 300;
 
   window.addEventListener("resize", onWindowResize);
+  window.addEventListener("click", onMouseClick);
 
   loadEnvironment(Object.keys(environments)[0]);
   const gui = new GUI();
   gui
     .add(params, "envMap", Object.keys(environments))
     .onChange(function (value) {
-      console.log(value);
       loadEnvironment(value);
     });
-  // gui.add(params, "roughness", 0, 1, 0.01);
-  // gui.add(params, "metalness", 0, 1, 0.01);
   gui.add(params, "exposure", 0, 2, 0.01);
-  // gui.add(params, "debug");
   gui.open();
 
   function displayStats(value) {
@@ -131,6 +189,52 @@ function init() {
       fileSizes[value] +
       ", Resolution: " +
       resolutions[value];
+  }
+
+  const maxDistance = 20;
+
+  const getDirection = (point) => {
+    if (
+      Math.abs(arrowX - point.z) < maxDistance &&
+      Math.abs(point.x) < maxDistance
+    ) {
+      return "front";
+    } else if (
+      Math.abs(arrowX + point.z) < maxDistance &&
+      Math.abs(point.x) < maxDistance
+    ) {
+      return "behind";
+    } else if (
+      Math.abs(arrowX - point.x) < maxDistance &&
+      Math.abs(point.z) < maxDistance
+    ) {
+      return "left";
+    } else if (
+      Math.abs(arrowX + point.x) < maxDistance &&
+      Math.abs(point.z) < maxDistance
+    ) {
+      return "right";
+    }
+  };
+
+  function onMouseClick(event) {
+    event.preventDefault();
+
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+    const intersects = raycaster.intersectObjects(scene.children);
+    intersects.forEach((intersect) => {
+      console.log("Click button: ", intersect.object.type);
+      if (intersect.object.type === "Mesh") {
+        const direction = getDirection(intersect.point);
+        const nextEnv = environments[params.envMap][direction]
+        console.log(environments[params.envMap][direction]);
+        loadEnvironment(nextEnv);
+      }
+    });
   }
 }
 
@@ -181,10 +285,8 @@ function render() {
 
   let pmremRenderTarget, equirectangularMap;
 
-  //Thay đổi ảnh sẽ set lại các biến này và đổi môi trường
   pmremRenderTarget = hdrJpgPMREMRenderTarget;
   equirectangularMap = hdrJpgEquirectangularMap;
-  //
 
   const newEnvMap = pmremRenderTarget ? pmremRenderTarget.texture : null;
 
