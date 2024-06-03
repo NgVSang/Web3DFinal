@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>three.js webgl - hdr jpg</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+  <!-- <link type="text/css" rel="stylesheet" href="main.css"> -->
+  <style>
+    body {
+      margin: 0px;
+      box-sizing: border-box;
+    }
+
+    .lbl {
+      color: #fff;
+      font-size: 16px;
+      font-weight: bold;
+      position: absolute;
+      bottom: 0px;
+      z-index: 100;
+      text-shadow: #000 1px 1px 1px;
+      background-color: rgba(0, 0, 0, 0.85);
+      padding: 1em;
+    }
+
+    #lbl_left {
+      text-align: left;
+      left: 0px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="lbl_left" class="lbl"></div>
+
+  <script type="importmap">
+    {
+        "imports": {
+            "three": "../build/three.module.js",
+            "three/addons/": "../jsm/",
+            "@monogrid/gainmap-js": "https://cdn.jsdelivr.net/npm/@monogrid/gainmap-js@3.0.0/dist/decode.js"
+        }
+    }
+</script>
+  <script src="./js/main.js" type="module"></script>
+</body>
+
+</html>
