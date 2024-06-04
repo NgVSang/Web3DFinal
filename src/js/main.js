@@ -5,24 +5,75 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { HDRJPGLoader } from "@monogrid/gainmap-js";
 import { GUI } from "three/addons/libs/lil-gui.module.min.js";
 
+
+// Các biến để cài đặt
 const environments = {
-  "Hội trường bách khoa": {
-    filename: "hoi_truong_bach_khoa.JPG",
-    front: "Hành lang bách khoa",
-    left: "Hành lang bách khoa",
+  "Nhà xe khu E":{
+    filename: "nha_xe_khu_E.JPG",
+    behind: "Đường gần khu C và E",
   },
-  "Hành lang bách khoa": {
-    filename: "hanh_lang_bach_khoa.JPG",
-    behind: "Hội trường bách khoa",
-    right: "Hội trường bách khoa",
+  "Đường gần khu C và E":{
+    filename: "duong_gan_khu_C_E.JPG",
+    front: "Nhà xe khu E",
+    left: "Tòa nhà thông minh",
+    behind: "Bùng binh gần khu A",
   },
+  "Tòa nhà thông minh": {
+    filename: "toa_nha_thong_minh.JPG",
+    right: "Đường gần khu C và E",
+    behind: "Khu A",
+  },
+  "Khu A": {
+    filename: "khu_A.JPG",
+    right: "Tòa nhà thông minh",
+    behind: "Bùng binh gần khu A",
+  },
+  "Bùng binh gần khu A": {
+    filename: "bung_binh_khu_A.JPG",
+    right: "Đường gần khu C và E",
+    front: "Khu A",
+    behind: "Đường gần khu C",
+  },
+  "Đường gần khu C":{
+    filename: "duong_gan_khu_C.JPG",
+    front: "Bùng binh gần khu A",
+    behind: 'Ngã tư'
+  },
+  "Ngã tư": {
+    filename: "nga_tu_gan_khu_C.JPG",
+    front: "Đường gần khu C",
+    left: 'Đường gần hội trường'
+  },
+  //Đưa Phước
+  "Đường gần hội trường":{
+    filename: "duong_gan_hoi_truong.JPG",
+    front:"Hồ nước",
+    right: "Ngã tư",
+    behind: "Sân trước hội trường"
+  },
+  //Đưa Phước
+  "Hồ nước": {
+    filename: "ho_nuoc.JPG",
+    behind:"Đường gần hội trường",
+  },
+  //Đưa Phước
+  "Sân trước hội trường":{
+    filename: "hoi_truong.JPG",
+    front: "Đường gần hội trường"
+  }
 };
+
+// Tạo các mũi tên chỉ hướng
+const arrowSize = 50;
+const arrowColor = "black";
+const arrowY = -100;
+const arrowX = 200;
 
 const params = {
   envMap: Object.keys(environments)[0],
   roughness: 0.0,
   metalness: 1.0,
-  exposure: 1.0,
+  exposure: 0.7,
   debug: false,
 };
 
@@ -82,12 +133,6 @@ function init() {
     pmremGenerator.dispose();
   };
 
-  // Tạo các mũi tên chỉ hướng
-  const arrowSize = 50;
-  const arrowColor = "black";
-  const arrowY = -100;
-  const arrowX = 200;
-
   const arrowData = {
     front: {
       direction: new THREE.Vector3(0, 0, 1),
@@ -117,10 +162,10 @@ function init() {
     return matchingProperties;
   }
 
-  function loadEnvironment(name) {
+  async function loadEnvironment(name) {
     params.envMap = name
     const filename = environments[name].filename;
-    hdrJpg = new HDRJPGLoader(renderer).load(
+    hdrJpg = await new HDRJPGLoader(renderer).load(
       `../../src/images/${filename}`,
       function () {
         resolutions[filename] = hdrJpg.width + "x" + hdrJpg.height;
@@ -138,7 +183,6 @@ function init() {
           environments[name],
           arrowData
         );
-        console.log(matchingProperties);
         scene.clear()
         matchingProperties.forEach((property) => {
           const arrowHelper = new THREE.ArrowHelper(
@@ -151,6 +195,7 @@ function init() {
           );
           scene.add(arrowHelper);
         })
+        fadeInEnvironment();
       },
       function (progress) {
         fileSizes[filename] = humanFileSize(progress.total);
@@ -179,7 +224,9 @@ function init() {
     .onChange(function (value) {
       loadEnvironment(value);
     });
-  gui.add(params, "exposure", 0, 2, 0.01);
+  gui.add(params, "exposure", 0, 2, 0.01).onChange(function (value) {
+    renderer.toneMappingExposure = value;
+  });;
   gui.open();
 
   function displayStats(value) {
@@ -217,6 +264,38 @@ function init() {
     }
   };
 
+  async function fadeOutEnvironment (callback) {
+    const duration = 500; // Thời gian mờ dần (ms)
+    const start = Date.now();
+  
+    await (async function fade() {
+      const elapsed = Date.now() - start;
+      const opacity = Math.max(1 - elapsed / duration, 0);
+      renderer.toneMappingExposure = params.exposure * opacity;
+
+      if (opacity > 0) {
+        requestAnimationFrame(fade);
+      } else {
+        await callback();
+      }
+    })();
+  }
+  
+  function fadeInEnvironment() {
+    const duration = 2000; // Thời gian xuất hiện dần (ms)
+    const start = Date.now();
+  
+    (function fade() {
+      const elapsed = Date.now() - start;
+      const opacity = Math.min(elapsed / duration, 1);
+      renderer.toneMappingExposure = params.exposure * opacity;
+  
+      if (opacity < 1) {
+        requestAnimationFrame(fade);
+      }
+    })();
+  }
+
   function onMouseClick(event) {
     event.preventDefault();
 
@@ -232,7 +311,8 @@ function init() {
         const direction = getDirection(intersect.point);
         const nextEnv = environments[params.envMap][direction]
         console.log(environments[params.envMap][direction]);
-        loadEnvironment(nextEnv);
+        // loadEnvironment(nextEnv);
+        fadeOutEnvironment(async () => await loadEnvironment(nextEnv));
       }
     });
   }
@@ -300,7 +380,8 @@ function render() {
 
   scene.environment = equirectangularMap;
   scene.background = equirectangularMap;
-  renderer.toneMappingExposure = params.exposure;
+
+  // renderer.toneMappingExposure = params.exposure;
 
   renderer.render(scene, camera);
 }
